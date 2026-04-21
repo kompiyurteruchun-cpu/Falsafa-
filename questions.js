@@ -11,47 +11,40 @@ def convert_to_js():
     lines = [line.strip() for line in content.split('\n') if line.strip()]
 
     questions = []
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        
-        # Agar qator raqam bilan boshlansa (savol bo'lsa)
+    current_q = None
+
+    for line in lines:
+        # Agar qator raqam bilan boshlansa (Savol bo'lsa)
         if re.match(r'^\d+', line):
+            if current_q and len(current_q['options']) > 0:
+                questions.append(current_q)
+            
+            # Boshidagi raqamni olib tashlash
             q_text = re.sub(r'^\d+\s*', '', line).strip()
-            opts = []
-            answer = ""
+            current_q = {"q": q_text, "options": [], "answer": ""}
+        
+        # Agar qator A, B, C, D bilan boshlansa (Variant bo'lsa)
+        elif current_q and re.match(r'^[A-D]\s*', line):
+            opt = re.sub(r'^[A-D]\s*', '', line).strip()
+            
+            # # belgisi to'g'ri javobni bildiradi
+            if '#' in opt:
+                opt = opt.replace('#', '').strip()
+                current_q['answer'] = opt
+            
+            current_q['options'].append(opt)
 
-            # Keyingi 4 ta qatorni variantlar sifatida o'qish
-            for j in range(1, 5):
-                if i + j < len(lines):
-                    opt_line = lines[i + j]
-                    # Boshidagi A, B, C, D harflarini olib tashlash
-                    opt_text = re.sub(r'^[A-D]\s*', '', opt_line).strip()
-                    
-                    if "#" in opt_text:
-                        opt_text = opt_text.replace("#", "").strip()
-                        answer = opt_text
-                    
-                    opts.append(opt_text)
-
-            # Agar 4 ta variant to'liq topilsa, ro'yxatga qo'shamiz
-            if len(opts) == 4:
-                questions.append({
-                    "q": q_text,
-                    "options": opts,
-                    "answer": answer
-                })
-            i += 5
-        else:
-            i += 1
+    # Oxirgi savolni ham ro'yxatga qo'shish
+    if current_q and len(current_q['options']) > 0:
+        questions.append(current_q)
 
     # Barcha savollarni 10 ta bo'limga bo'lish
     sections = []
-    size = 50 
+    size = 50 # Har bir bo'limda 50 tadan
     for idx in range(10):
-        section_q = questions[idx*size : (idx+1)*size]
-        if section_q:
-            sections.append(section_q)
+        chunk = questions[idx*size : (idx+1)*size]
+        if chunk:
+            sections.append(chunk)
 
     # Natijani questions.js fayliga yozish
     with open("questions.js", "w", encoding="utf-8") as f:
@@ -59,8 +52,7 @@ def convert_to_js():
         json.dump(sections, f, ensure_ascii=False, indent=4)
         f.write(";\n")
         
-    print(f"Ajoyib! Jami {len(questions)} ta savol questions.js fayliga muvaffaqiyatli saqlandi!")
+    print(f"Tabriklayman! Jami {len(questions)} ta savol questions.js fayliga xatosiz saqlandi!")
 
 if __name__ == "__main__":
     convert_to_js()
-      
