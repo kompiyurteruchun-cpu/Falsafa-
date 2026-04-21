@@ -125,23 +125,94 @@
         <button class="primary-btn" onclick="tg.close()">Rahmat!</button>
     </div>
 
-    <script src="questions.js"></script>
-
     <script>
         const tg = window.Telegram.WebApp;
+        let allSections = [];
         let currentSectionIndex = 0;
         let currentQuestionIndex = 0;
         let correctCount = 0;
         let timer;
         let timeLeft = 30;
 
-        function initApp() {
-            // allQuestions o'zgaruvchisi questions.js faylidan keladi
-            if (typeof allQuestions !== 'undefined' && allQuestions.length > 0) {
+        async function loadAndParseQuestions() {
+            try {
+                const statusEl = document.getElementById('loading-status');
+                statusEl.innerText = "Savollar bazasi yuklanmoqda...";
+                
+                // Bevosita falsafa.txt fayliga murojaat qilamiz
+                const url = 'https://kompiyurteruchun-cpu.github.io/Falsafa-/falsafa.txt?v=' + new Date().getTime();
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error("falsafa.txt fayli topilmadi!");
+                }
+                
+                statusEl.innerText = "Savollar tozalanmoqda...";
+                let text = await response.text();
+                
+                // Matn ichidagi keraksiz belgilarni olib tashlaymiz
+                text = text.replace(/\/g, '');
+                const lines = text.split('\n').map(l => l.trim()).filter(l => l !== "");
+                
+                let questions = [];
+                let i = 0;
+                
+                while(i < lines.length) {
+                    let line = lines[i];
+                    
+                    // Agar qator raqam bilan boshlansa (savol bo'lsa)
+                    if (/^\d+/.test(line)) {
+                        let qObj = {
+                            q: line.replace(/^\d+\s*/, '').trim(),
+                            options: [],
+                            answer: ""
+                        };
+                        
+                        // Keyingi 4 qatorni variantlar deb olamiz
+                        for (let j = 1; j <= 4; j++) {
+                            if (i + j < lines.length) {
+                                let optLine = lines[i+j];
+                                let opt = optLine.replace(/^[A-D]\s*/, '').trim();
+                                if (opt.includes("#")) {
+                                    opt = opt.replace("#", "").trim();
+                                    qObj.answer = opt;
+                                }
+                                qObj.options.push(opt);
+                            }
+                        }
+                        
+                        if(qObj.options.length === 4) {
+                            questions.push(qObj);
+                        }
+                        i += 5; // Keyingi savolga sakrash
+                    } else {
+                        i++;
+                    }
+                }
+
+                if(questions.length === 0) {
+                    throw new Error("Savollarni tahlil qilib bo'lmadi! Matn tuzilishi noto'g'ri.");
+                }
+
+                // 10 ta bo'limga bo'lish
+                allSections = [];
+                let size = Math.ceil(questions.length / 10);
+                if(size === 0) size = 50; 
+                
+                for (let i = 0; i < 10; i++) {
+                    let chunk = questions.slice(i * size, (i + 1) * size);
+                    if (chunk.length > 0) {
+                        allSections.push(chunk);
+                    }
+                }
+
+                // Ekranlarni o'zgartirish
                 document.getElementById('loading-screen').style.display = 'none';
                 showMenu();
-            } else {
-                document.getElementById('loading-status').innerHTML = '<span style="color:#F44336; font-weight:bold;">Xato: questions.js fayli topilmadi yoki bo\'sh!</span>';
+
+            } catch (e) {
+                console.error(e);
+                document.getElementById('loading-status').innerHTML = `<br><span style="color:#F44336; font-weight:bold;">XATO: ${e.message}</span>`;
             }
         }
 
@@ -149,7 +220,7 @@
             hideAll();
             const grid = document.getElementById('menu-grid');
             grid.innerHTML = '';
-            allQuestions.forEach((s, index) => {
+            allSections.forEach((s, index) => {
                 const btn = document.createElement('button');
                 btn.className = 'category-btn';
                 btn.innerHTML = `<span>📂</span> Bo'lim ${index + 1}`;
@@ -177,8 +248,8 @@
             timeLeft = 30;
             updateTimerUI();
             
-            const q = allQuestions[currentSectionIndex][currentQuestionIndex];
-            const secLen = allQuestions[currentSectionIndex].length;
+            const q = allSections[currentSectionIndex][currentQuestionIndex];
+            const secLen = allSections[currentSectionIndex].length;
             document.getElementById('progress').innerText = `${currentQuestionIndex + 1} / ${secLen}`;
             document.getElementById('question').innerText = q.q;
             
@@ -221,14 +292,14 @@
 
         function nextQuestion() {
             currentQuestionIndex++;
-            if (currentQuestionIndex < allQuestions[currentSectionIndex].length) loadQuestion();
+            if (currentQuestionIndex < allSections[currentSectionIndex].length) loadQuestion();
             else finishSection();
         }
 
         function finishSection() {
             hideAll();
             document.getElementById('result-container').style.display = 'block';
-            const secLen = allQuestions[currentSectionIndex].length;
+            const secLen = allSections[currentSectionIndex].length;
             document.getElementById('session-score').innerText = `${secLen} tadan ${correctCount} ta to'g'ri!`;
             
             let scores = JSON.parse(localStorage.getItem('falsafa_scores') || '{}');
@@ -243,7 +314,7 @@
             let totalCorrect = Object.values(scores).reduce((a, b) => a + b, 0);
             
             let totalQuestionsInApp = 0;
-            allQuestions.forEach(sec => totalQuestionsInApp += sec.length);
+            allSections.forEach(sec => totalQuestionsInApp += sec.length);
             if(totalQuestionsInApp === 0) totalQuestionsInApp = 500;
 
             let percent = (totalCorrect / totalQuestionsInApp) * 100;
@@ -292,7 +363,7 @@
             .forEach(id => document.getElementById(id).style.display = 'none');
         }
 
-        window.onload = initApp;
+        window.onload = loadAndParseQuestions;
     </script>
 </body>
 </html>
