@@ -125,93 +125,23 @@
         <button class="primary-btn" onclick="tg.close()">Rahmat!</button>
     </div>
 
+    <script src="questions.js"></script>
+
     <script>
         const tg = window.Telegram.WebApp;
-        let allSections = [];
         let currentSectionIndex = 0;
         let currentQuestionIndex = 0;
         let correctCount = 0;
         let timer;
         let timeLeft = 30;
 
-        // Detektor: Agar kodda biror xato yuz bersa, ekranga qizil yozuvda chiqaradi
-        window.onerror = function(msg, url, line) {
-            document.getElementById('loading-status').innerHTML += `<br><br><span style="color:#F44336;">XATO CHIQDI: ${msg} (Qator: ${line})</span>`;
-            return false;
-        };
-
-        async function loadAndParseQuestions() {
-            try {
-                const statusEl = document.getElementById('loading-status');
-                
-                statusEl.innerText = "1. GitHub serveriga ulanmoqda...";
-                // 100% aniq ishlaydigan mutlaq havola
-                const absoluteUrl = 'https://kompiyurteruchun-cpu.github.io/Falsafa-/falsafa.txt?v=' + new Date().getTime();
-                
-                const response = await fetch(absoluteUrl);
-                
-                if (!response.ok) {
-                    throw new Error("falsafa.txt fayli GitHubda topilmadi! (404 xatolik)");
-                }
-                
-                statusEl.innerText = "2. Fayl topildi. O'qilmoqda...";
-                const text = await response.text();
-                
-                statusEl.innerText = "3. Savollar ajratilmoqda...";
-                const lines = text.split('\n').map(l => l.trim()).filter(l => l !== "");
-                
-                let questions = [];
-                for (let i = 0; i < lines.length; i++) {
-                    // Xatolarsiz tozalash kodi
-                    let line = lines[i].replace(/\/g, '').trim();
-                    
-                    if (/^\d+/.test(line)) {
-                        let qObj = {
-                            q: line.replace(/^\d+\s*/, '').trim(),
-                            options: [],
-                            answer: ""
-                        };
-                        for (let j = 1; j <= 4; j++) {
-                            if (i + j < lines.length) {
-                                let optLine = lines[i+j].replace(/\/g, '').trim();
-                                let opt = optLine.replace(/^[A-D]\s*/, '').trim();
-                                if (opt.includes("#")) {
-                                    opt = opt.replace("#", "").trim();
-                                    qObj.answer = opt;
-                                }
-                                qObj.options.push(opt);
-                            }
-                        }
-                        if(qObj.options.length === 4) {
-                            questions.push(qObj);
-                        }
-                        i += 4;
-                    }
-                }
-
-                if(questions.length === 0) {
-                    throw new Error("Fayl ichidan hech qanday savol topilmadi! Matn tuzilishi xato.");
-                }
-
-                statusEl.innerText = `Ajoyib! ${questions.length} ta savol tayyorlandi...`;
-
-                allSections = [];
-                let size = Math.ceil(questions.length / 10);
-                if(size === 0) size = 50; 
-                
-                for (let i = 0; i < 10; i++) {
-                    if (questions.slice(i * size, (i + 1) * size).length > 0) {
-                        allSections.push(questions.slice(i * size, (i + 1) * size));
-                    }
-                }
-
-                // Hammasi joyida bo'lsa, oynani ochish
+        function initApp() {
+            // allQuestions o'zgaruvchisi questions.js faylidan keladi
+            if (typeof allQuestions !== 'undefined' && allQuestions.length > 0) {
                 document.getElementById('loading-screen').style.display = 'none';
                 showMenu();
-
-            } catch (e) {
-                console.error(e);
-                document.getElementById('loading-status').innerHTML += `<br><br><span style="color:#F44336; font-weight:bold;">MUAMMO: ${e.message}</span>`;
+            } else {
+                document.getElementById('loading-status').innerHTML = '<span style="color:#F44336; font-weight:bold;">Xato: questions.js fayli topilmadi yoki bo\'sh!</span>';
             }
         }
 
@@ -219,7 +149,7 @@
             hideAll();
             const grid = document.getElementById('menu-grid');
             grid.innerHTML = '';
-            allSections.forEach((s, index) => {
+            allQuestions.forEach((s, index) => {
                 const btn = document.createElement('button');
                 btn.className = 'category-btn';
                 btn.innerHTML = `<span>📂</span> Bo'lim ${index + 1}`;
@@ -236,7 +166,6 @@
             hideAll();
             document.getElementById('quiz-container').style.display = 'block';
             
-            // Videoni yoqish
             const video = document.getElementById('bg-video');
             if (video && video.muted) { video.muted = false; document.getElementById('sound-toggle').innerText = '🔊'; }
 
@@ -248,8 +177,8 @@
             timeLeft = 30;
             updateTimerUI();
             
-            const q = allSections[currentSectionIndex][currentQuestionIndex];
-            const secLen = allSections[currentSectionIndex].length;
+            const q = allQuestions[currentSectionIndex][currentQuestionIndex];
+            const secLen = allQuestions[currentSectionIndex].length;
             document.getElementById('progress').innerText = `${currentQuestionIndex + 1} / ${secLen}`;
             document.getElementById('question').innerText = q.q;
             
@@ -292,14 +221,14 @@
 
         function nextQuestion() {
             currentQuestionIndex++;
-            if (currentQuestionIndex < allSections[currentSectionIndex].length) loadQuestion();
+            if (currentQuestionIndex < allQuestions[currentSectionIndex].length) loadQuestion();
             else finishSection();
         }
 
         function finishSection() {
             hideAll();
             document.getElementById('result-container').style.display = 'block';
-            const secLen = allSections[currentSectionIndex].length;
+            const secLen = allQuestions[currentSectionIndex].length;
             document.getElementById('session-score').innerText = `${secLen} tadan ${correctCount} ta to'g'ri!`;
             
             let scores = JSON.parse(localStorage.getItem('falsafa_scores') || '{}');
@@ -314,7 +243,7 @@
             let totalCorrect = Object.values(scores).reduce((a, b) => a + b, 0);
             
             let totalQuestionsInApp = 0;
-            allSections.forEach(sec => totalQuestionsInApp += sec.length);
+            allQuestions.forEach(sec => totalQuestionsInApp += sec.length);
             if(totalQuestionsInApp === 0) totalQuestionsInApp = 500;
 
             let percent = (totalCorrect / totalQuestionsInApp) * 100;
@@ -363,7 +292,7 @@
             .forEach(id => document.getElementById(id).style.display = 'none');
         }
 
-        window.onload = loadAndParseQuestions;
+        window.onload = initApp;
     </script>
 </body>
 </html>
