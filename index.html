@@ -72,14 +72,14 @@
             cursor: pointer; background: linear-gradient(90deg, #7b2cbf, #a100ff); color: #fff; margin-top: 10px;
         }
 
-        #loading-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #loading-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; }
     </style>
 </head>
 <body>
 
     <div id="loading-screen">
-        <div style="font-size: 24px; color: #a100ff;">Yuklanmoqda...</div>
-        <div style="margin-top: 10px;" id="loading-status">Savollar bazasi tayyorlanmoqda</div>
+        <div style="font-size: 24px; color: #a100ff; margin-bottom: 15px;">Kuting...</div>
+        <div style="font-size: 16px; color: #fff; line-height: 1.5;" id="loading-status">Tizim ishga tushmoqda...</div>
     </div>
 
     <video autoplay loop muted playsinline id="bg-video">
@@ -134,20 +134,35 @@
         let timer;
         let timeLeft = 30;
 
+        // Detektor: Agar kodda biror xato yuz bersa, ekranga qizil yozuvda chiqaradi
+        window.onerror = function(msg, url, line) {
+            document.getElementById('loading-status').innerHTML += `<br><br><span style="color:#F44336;">XATO CHIQDI: ${msg} (Qator: ${line})</span>`;
+            return false;
+        };
+
         async function loadAndParseQuestions() {
             try {
-                // To'g'ri havola
-                const nocacheUrl = 'falsafa.txt?v=' + new Date().getTime();
-                const response = await fetch(nocacheUrl);
+                const statusEl = document.getElementById('loading-status');
                 
-                if (!response.ok) throw new Error("Fayl serverdan topilmadi!");
+                statusEl.innerText = "1. GitHub serveriga ulanmoqda...";
+                // 100% aniq ishlaydigan mutlaq havola
+                const absoluteUrl = 'https://kompiyurteruchun-cpu.github.io/Falsafa-/falsafa.txt?v=' + new Date().getTime();
                 
+                const response = await fetch(absoluteUrl);
+                
+                if (!response.ok) {
+                    throw new Error("falsafa.txt fayli GitHubda topilmadi! (404 xatolik)");
+                }
+                
+                statusEl.innerText = "2. Fayl topildi. O'qilmoqda...";
                 const text = await response.text();
+                
+                statusEl.innerText = "3. Savollar ajratilmoqda...";
                 const lines = text.split('\n').map(l => l.trim()).filter(l => l !== "");
                 
                 let questions = [];
                 for (let i = 0; i < lines.length; i++) {
-                    // Xatolar to'g'rilangan tozalash kodi
+                    // Xatolarsiz tozalash kodi
                     let line = lines[i].replace(/\/g, '').trim();
                     
                     if (/^\d+/.test(line)) {
@@ -174,7 +189,12 @@
                     }
                 }
 
-                // 10 bo'limga avtomatik bo'lish
+                if(questions.length === 0) {
+                    throw new Error("Fayl ichidan hech qanday savol topilmadi! Matn tuzilishi xato.");
+                }
+
+                statusEl.innerText = `Ajoyib! ${questions.length} ta savol tayyorlandi...`;
+
                 allSections = [];
                 let size = Math.ceil(questions.length / 10);
                 if(size === 0) size = 50; 
@@ -185,12 +205,13 @@
                     }
                 }
 
+                // Hammasi joyida bo'lsa, oynani ochish
                 document.getElementById('loading-screen').style.display = 'none';
                 showMenu();
 
             } catch (e) {
                 console.error(e);
-                document.getElementById('loading-status').innerHTML = `<span style="color:#F44336;">Xatolik: falsafa.txt faylini o'qib bo'lmadi!</span>`;
+                document.getElementById('loading-status').innerHTML += `<br><br><span style="color:#F44336; font-weight:bold;">MUAMMO: ${e.message}</span>`;
             }
         }
 
@@ -217,7 +238,7 @@
             
             // Videoni yoqish
             const video = document.getElementById('bg-video');
-            if (video.muted) { video.muted = false; document.getElementById('sound-toggle').innerText = '🔊'; }
+            if (video && video.muted) { video.muted = false; document.getElementById('sound-toggle').innerText = '🔊'; }
 
             loadQuestion();
         }
@@ -331,8 +352,10 @@
 
         function toggleSound() {
             const v = document.getElementById('bg-video');
-            v.muted = !v.muted;
-            document.getElementById('sound-toggle').innerText = v.muted ? '🔇' : '🔊';
+            if (v) {
+                v.muted = !v.muted;
+                document.getElementById('sound-toggle').innerText = v.muted ? '🔇' : '🔊';
+            }
         }
 
         function hideAll() {
