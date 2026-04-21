@@ -134,11 +134,10 @@
         let timer;
         let timeLeft = 30;
 
-        // Xatoni oldini olish va savollarni ishonchli yuklash
         async function loadAndParseQuestions() {
             try {
-                // Har doim eng yangi ma'lumotni yuklashi uchun vaqt qo'shildi
-                const nocacheUrl = 'https://kompiyurt.github.io/Falsafa-/falsafa.txt?v=' + new Date().getTime();
+                // To'g'ri havola
+                const nocacheUrl = 'falsafa.txt?v=' + new Date().getTime();
                 const response = await fetch(nocacheUrl);
                 
                 if (!response.ok) throw new Error("Fayl serverdan topilmadi!");
@@ -148,7 +147,7 @@
                 
                 let questions = [];
                 for (let i = 0; i < lines.length; i++) {
-                    // va shunga o'xshash belgilarni tozalash (Sintaktik xato to'g'rilandi)
+                    // Xatolar to'g'rilangan tozalash kodi
                     let line = lines[i].replace(/\/g, '').trim();
                     
                     if (/^\d+/.test(line)) {
@@ -171,7 +170,7 @@
                         if(qObj.options.length === 4) {
                             questions.push(qObj);
                         }
-                        i += 4; // Keyingi savolga o'tish
+                        i += 4;
                     }
                 }
 
