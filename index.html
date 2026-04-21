@@ -79,7 +79,7 @@
 
     <div id="loading-screen">
         <div style="font-size: 24px; color: #a100ff;">Yuklanmoqda...</div>
-        <div style="margin-top: 10px;">Savollar bazasi tayyorlanmoqda</div>
+        <div style="margin-top: 10px;" id="loading-status">Savollar bazasi tayyorlanmoqda</div>
     </div>
 
     <video autoplay loop muted playsinline id="bg-video">
@@ -102,7 +102,7 @@
                 <div class="timer-text" id="timer-text">30</div>
             </div>
         </div>
-        <div id="question" style="font-size: 18px; margin-bottom: 20px; font-weight: bold;"></div>
+        <div id="question" style="font-size: 18px; margin-bottom: 20px; font-weight: bold; line-height: 1.4;"></div>
         <div id="options"></div>
     </div>
 
@@ -115,7 +115,7 @@
     <div class="container" id="cert-name-input" style="display:none;">
         <h2 style="color: #ffd700;">Tabriklaymiz! 🎉</h2>
         <p>Sertifikat uchun ism-familiyangizni kiriting:</p>
-        <input type="text" id="user-name" style="width:100%; padding:15px; border-radius:10px; margin-bottom:20px; border:none; text-align:center;" placeholder="Ism Familiya">
+        <input type="text" id="user-name" style="width:100%; padding:15px; border-radius:10px; margin-bottom:20px; border:none; text-align:center; font-size: 16px;" placeholder="Ism Familiya">
         <button class="primary-btn" onclick="generateFinalCert()">Yaratish</button>
     </div>
 
@@ -134,24 +134,33 @@
         let timer;
         let timeLeft = 30;
 
-        // 1. SAVOLLARNI TXT FAYLDAN O'QISH VA PARSING QILISH
+        // Xatoni oldini olish va savollarni ishonchli yuklash
         async function loadAndParseQuestions() {
             try {
-                const response = await fetch('falsafa.txt');
+                // Har doim eng yangi ma'lumotni yuklashi uchun vaqt qo'shildi
+                const nocacheUrl = 'https://kompiyurt.github.io/Falsafa-/falsafa.txt?v=' + new Date().getTime();
+                const response = await fetch(nocacheUrl);
+                
+                if (!response.ok) throw new Error("Fayl serverdan topilmadi!");
+                
                 const text = await response.text();
                 const lines = text.split('\n').map(l => l.trim()).filter(l => l !== "");
                 
                 let questions = [];
                 for (let i = 0; i < lines.length; i++) {
-                    if (/^\d+/.test(lines[i])) {
+                    // va shunga o'xshash belgilarni tozalash (Sintaktik xato to'g'rilandi)
+                    let line = lines[i].replace(/\/g, '').trim();
+                    
+                    if (/^\d+/.test(line)) {
                         let qObj = {
-                            q: lines[i].replace(/^\d+\s*/, '').replace(/\/g, '').trim(),
+                            q: line.replace(/^\d+\s*/, '').trim(),
                             options: [],
                             answer: ""
                         };
                         for (let j = 1; j <= 4; j++) {
-                            if (lines[i+j]) {
-                                let opt = lines[i+j].replace(/^[A-D]\s*/, '').replace(/\/g, '').trim();
+                            if (i + j < lines.length) {
+                                let optLine = lines[i+j].replace(/\/g, '').trim();
+                                let opt = optLine.replace(/^[A-D]\s*/, '').trim();
                                 if (opt.includes("#")) {
                                     opt = opt.replace("#", "").trim();
                                     qObj.answer = opt;
@@ -159,20 +168,30 @@
                                 qObj.options.push(opt);
                             }
                         }
-                        questions.push(qObj);
-                        i += 4;
+                        if(qObj.options.length === 4) {
+                            questions.push(qObj);
+                        }
+                        i += 4; // Keyingi savolga o'tish
                     }
                 }
 
-                // 10 bo'limga bo'lish
+                // 10 bo'limga avtomatik bo'lish
+                allSections = [];
+                let size = Math.ceil(questions.length / 10);
+                if(size === 0) size = 50; 
+                
                 for (let i = 0; i < 10; i++) {
-                    allSections.push(questions.slice(i * 50, (i + 1) * 50));
+                    if (questions.slice(i * size, (i + 1) * size).length > 0) {
+                        allSections.push(questions.slice(i * size, (i + 1) * size));
+                    }
                 }
 
                 document.getElementById('loading-screen').style.display = 'none';
                 showMenu();
+
             } catch (e) {
-                alert("Xatolik: falsafa.txt topilmadi!");
+                console.error(e);
+                document.getElementById('loading-status').innerHTML = `<span style="color:#F44336;">Xatolik: falsafa.txt faylini o'qib bo'lmadi!</span>`;
             }
         }
 
@@ -196,6 +215,11 @@
             correctCount = 0;
             hideAll();
             document.getElementById('quiz-container').style.display = 'block';
+            
+            // Videoni yoqish
+            const video = document.getElementById('bg-video');
+            if (video.muted) { video.muted = false; document.getElementById('sound-toggle').innerText = '🔊'; }
+
             loadQuestion();
         }
 
@@ -205,7 +229,8 @@
             updateTimerUI();
             
             const q = allSections[currentSectionIndex][currentQuestionIndex];
-            document.getElementById('progress').innerText = `${currentQuestionIndex + 1} / 50`;
+            const secLen = allSections[currentSectionIndex].length;
+            document.getElementById('progress').innerText = `${currentQuestionIndex + 1} / ${secLen}`;
             document.getElementById('question').innerText = q.q;
             
             const optsDiv = document.getElementById('options');
@@ -247,14 +272,15 @@
 
         function nextQuestion() {
             currentQuestionIndex++;
-            if (currentQuestionIndex < 50) loadQuestion();
+            if (currentQuestionIndex < allSections[currentSectionIndex].length) loadQuestion();
             else finishSection();
         }
 
         function finishSection() {
             hideAll();
             document.getElementById('result-container').style.display = 'block';
-            document.getElementById('session-score').innerText = `50 tadan ${correctCount} ta to'g'ri!`;
+            const secLen = allSections[currentSectionIndex].length;
+            document.getElementById('session-score').innerText = `${secLen} tadan ${correctCount} ta to'g'ri!`;
             
             let scores = JSON.parse(localStorage.getItem('falsafa_scores') || '{}');
             if (!scores[currentSectionIndex] || correctCount > scores[currentSectionIndex]) {
@@ -266,14 +292,19 @@
         function checkCertificate() {
             let scores = JSON.parse(localStorage.getItem('falsafa_scores') || '{}');
             let totalCorrect = Object.values(scores).reduce((a, b) => a + b, 0);
-            let percent = (totalCorrect / 500) * 100;
+            
+            let totalQuestionsInApp = 0;
+            allSections.forEach(sec => totalQuestionsInApp += sec.length);
+            if(totalQuestionsInApp === 0) totalQuestionsInApp = 500;
+
+            let percent = (totalCorrect / totalQuestionsInApp) * 100;
 
             if (percent >= 70) {
                 hideAll();
                 document.getElementById('cert-name-input').style.display = 'block';
                 window.currentPercent = percent;
             } else {
-                alert(`Sertifikat uchun 70% kerak. Sizda: ${percent.toFixed(1)}%`);
+                alert(`Sertifikat uchun barcha savollarning kamida 70% ini to'g'ri topishingiz kerak!\n\nSizning umumiy natijangiz: ${percent.toFixed(1)}%`);
             }
         }
 
@@ -287,8 +318,8 @@
             hideAll();
             document.getElementById('cert-content').innerHTML = `
                 <h2 style="text-transform: uppercase;">Tabriklaymiz, <br><span style="color:#ffd700;">${name}</span>!</h2>
-                <p>Biz bilan bo'lganingiz uchun rahmat! <br> Siz 500 ta testning <b>${p.toFixed(1)}%</b> qismini to'g'ri ishlaganingiz uchun</p>
-                <h3 style="color:#ffd700; font-size:24px;">${deg}</h3>
+                <p>Biz bilan bo'lganingiz uchun rahmat! <br> Siz testlarning <b>${p.toFixed(1)}%</b> qismini to'g'ri ishlaganingiz uchun</p>
+                <h3 style="color:#ffd700; font-size:24px; margin: 15px 0;">${deg}</h3>
                 <p>sertifikatga loyiq ko'rildingiz!</p>
             `;
             document.getElementById('certificate-display').style.display = 'block';
@@ -313,5 +344,4 @@
         window.onload = loadAndParseQuestions;
     </script>
 </body>
-  </html>
-      
+</html>
